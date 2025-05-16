@@ -34,11 +34,6 @@ export default function Home() {
   const [areaPixels, setAreaPixels] = useState<any>(null);
   const [croppedImages, setCroppedImages] = useState<string[]>([]);
 
-  interface Crop {
-    x: number;
-    y: number;
-  }
-
   interface AreaPixels {
     width: number;
     height: number;
