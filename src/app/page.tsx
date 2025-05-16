@@ -1,103 +1,176 @@
-import Image from "next/image";
+"use client";
+import { useState, useCallback } from "react";
+import { PDFDownloadLink, PDFViewer } from "@react-pdf/renderer";
+import { PolaroidPDF } from "../components/PolaroidPDF";
+import Cropper from "react-easy-crop";
+
+async function getCroppedImage(imageSrc: string, area: any) {
+  const img = new Image();
+  img.src = imageSrc;
+  await new Promise((r) => (img.onload = r));
+  const canvas = document.createElement("canvas");
+  canvas.width = area.width;
+  canvas.height = area.height;
+  const ctx = canvas.getContext("2d")!;
+  ctx.drawImage(
+    img,
+    area.x,
+    area.y,
+    area.width,
+    area.height,
+    0,
+    0,
+    area.width,
+    area.height
+  );
+  return canvas.toDataURL("image/jpeg");
+}
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [fileList, setFileList] = useState<string[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [areaPixels, setAreaPixels] = useState<any>(null);
+  const [croppedImages, setCroppedImages] = useState<string[]>([]);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
+  interface Crop {
+    x: number;
+    y: number;
+  }
+
+  interface AreaPixels {
+    width: number;
+    height: number;
+    x: number;
+    y: number;
+  }
+
+  type OnCropComplete = (
+    croppedArea: any,
+    croppedAreaPixels: AreaPixels
+  ) => void;
+
+  const onCropComplete: OnCropComplete = useCallback(
+    (_: any, croppedAreaPixels: AreaPixels) => {
+      setAreaPixels(croppedAreaPixels);
+    },
+    []
+  );
+
+  function handleFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files;
+    if (!files) return;
+    const urls = Array.from(files).map((f) => URL.createObjectURL(f));
+    setFileList(urls);
+    setCurrentIndex(0);
+    setCroppedImages([]);
+  }
+
+  const confirmCrop = async () => {
+    if (!areaPixels) return;
+    const cropped = await getCroppedImage(fileList[currentIndex], areaPixels);
+    setCroppedImages((prev) => [...prev, cropped]);
+    const nextIndex = currentIndex + 1;
+    if (nextIndex < fileList.length) {
+      setCurrentIndex(nextIndex);
+      setCrop({ x: 0, y: 0 });
+      setZoom(1);
+    } else {
+      setCurrentIndex(nextIndex);
+    }
+  };
+
+  const isCropping = currentIndex < fileList.length;
+  const total = fileList.length;
+  const current = currentIndex + 1;
+
+  return (
+    <main className="max-w-3xl mx-auto p-8 bg-white shadow-lg rounded-xl mt-10">
+      <h1 className="text-4xl font-extrabold text-center text-pink-500">
+        Polaroidfy
+      </h1>
+      <p className="text-center mt-2 text-gray-600">
+        Faça upload das suas fotos, ajuste o crop para a área Polaroid e gere
+        seu PDF personalizado!
+      </p>
+
+      <div className="my-6 flex flex-col items-center">
+        <label className="cursor-pointer inline-block px-6 py-3 bg-pink-500 text-white font-medium rounded-lg shadow hover:bg-pink-600 transition-colors">
+          Selecionar Fotos
+          <input
+            type="file"
+            multiple
+            accept="image/*"
+            onChange={handleFiles}
+            className="hidden"
+          />
+        </label>
+        <span className="mt-2 text-gray-500 text-sm">
+          Você pode selecionar várias imagens
+        </span>
+      </div>
+
+      {fileList.length > 0 && isCropping && (
+        <div className="space-y-4">
+          <div className="text-center text-gray-700">
+            Foto {current} de {total}
+          </div>
+          <div className="relative w-full h-[500px] bg-gray-200 rounded-lg overflow-hidden text-black">
+            <Cropper
+              image={fileList[currentIndex]}
+              crop={crop}
+              zoom={zoom}
+              aspect={1}
+              onCropChange={setCrop}
+              onZoomChange={setZoom}
+              onCropComplete={onCropComplete}
             />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+          </div>
+           <div className="flex items-center space-x-4">
+            <label className="flex-1 text-black">
+              <p className="text-black">
+                Zoom:
+              </p>
+              <input
+                type="range"
+                min={1}
+                max={3}
+                step={0.1}
+                value={zoom}
+                onChange={(e) => setZoom(Number(e.target.value))}
+                className="w-full"
+              />
+            </label>
+            <button
+              onClick={confirmCrop}
+              className="px-6 py-2 bg-pink-500 text-white font-medium rounded-lg shadow hover:bg-pink-600"
+            >
+              {current < total ? "Próxima Foto" : "Finalizar e Ver Preview"}
+            </button>
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+      )}
+
+      {fileList.length > 0 && !isCropping && (
+        <div className="border rounded-lg overflow-hidden h-[600px]">
+          <PDFViewer className="w-full h-full">
+            <PolaroidPDF images={croppedImages} />
+          </PDFViewer>
+        </div>
+      )}
+
+      {croppedImages.length > 0 && !isCropping && (
+        <div className="text-center mt-4">
+          <PDFDownloadLink
+            document={<PolaroidPDF images={croppedImages} />}
+            fileName="polaroids.pdf"
+            className="inline-block px-6 py-3 bg-pink-500 text-white font-medium rounded-lg shadow hover:bg-pink-600"
+          >
+            {({ loading }) => (loading ? "Preparando..." : "Download do PDF")}
+          </PDFDownloadLink>
+        </div>
+      )}
+    </main>
   );
 }
